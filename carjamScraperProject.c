@@ -21,7 +21,7 @@ void curl_get_data(char *input);
 int clear_data(data_holder *data);
 char *time_calc(char *last_date);
 bool is_loading_screen(data_holder *page_data);
-char *extract_feature(char *data, char *divider, int optional_offset, int desired_length);
+char *extract_feature(char *data, char *divider, int optional_offset, int max_length);
 void deal_with_the_data(data_holder *data, char *carjam_url);
 size_t curl_to_string(void *ptr, size_t size, size_t nmemb, void *data);
 bool curl_to_the_perform(CURL *handle_mate);
@@ -202,9 +202,9 @@ char *time_calc(char *last_date){
 }
 
 //this is a nice function. 
-char *extract_feature(char *data, char *divider, int optional_offset, int desired_length){
+char *extract_feature(char *data, char *divider, int optional_offset, int max_length){
   
-  char *FEATURE = malloc(desired_length);
+  char *FEATURE = malloc(max_length);
 
   if (data == NULL){
     strncpy(FEATURE, "Not found", 10);  
@@ -217,7 +217,7 @@ char *extract_feature(char *data, char *divider, int optional_offset, int desire
   char *this_div = strstr(data, divider);
   int length = this_div - data;
 
-  if (length > desired_length){
+  if (length > max_length){
     strncpy(FEATURE, "Not found", 10);
     return FEATURE;
   }
@@ -253,6 +253,7 @@ void deal_with_the_data(data_holder *data, char *carjam_url){
   char *COLOUR = extract_feature(LAST_REFERENCE + 4, " | ", 0, 15);
   LAST_REFERENCE += strlen(COLOUR) + 4;
   
+  //everything after colour might not be there, so last reference isn't updated
   char *VIN = extract_feature(strstr(LAST_REFERENCE, "vin\":\""), "\",", 6, 30); 
   
   char *CHASSIS = extract_feature(strstr(LAST_REFERENCE, "chassis\":\""), "-", 10, 20);
@@ -262,7 +263,8 @@ void deal_with_the_data(data_holder *data, char *carjam_url){
   
   char *LAST_ODO_READING = extract_feature(strstr(LAST_REFERENCE, "odometer_reading\":\""), "\",", 19, 15);
 
-  char *SUBMODEL = extract_feature(strstr(LAST_REFERENCE, "Submodel:"), "</span", 38, 15);
+  //73 after second repeat
+  char *SUBMODEL = extract_feature(strstr(LAST_REFERENCE, "Submodel:"), "</span", 85, 15);
   SUBMODEL = (isupper(SUBMODEL[0])) ? SUBMODEL : strdup("Not found");
   
   char *BODY_STYLE = extract_feature(strstr(LAST_REFERENCE, "Body Style:"), "</span", 40, 10);

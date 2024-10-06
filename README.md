@@ -7,5 +7,3 @@ Example:
 ![Carjam scraper example](example.png)
 
 Shoutout [Tinny](https://soundcloud.com/tinnietinskin) for making music that's very nice to write code to.
-
-(it's all in one commit because I learned to use git after making this)
