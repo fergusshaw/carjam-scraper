@@ -170,7 +170,7 @@ void curl_get_data(char *carjam_url){
       int iter = 0;
       while (is_loading_screen(data) && iter <6){
 
-        printf("Loading screen detected. waiting 5 seconds and trying again...\n");
+        printf("Loading screen detected. Waiting 5 seconds and trying again...\n");
         sleep(5);
 	      clear_data(data);
 	      
@@ -265,10 +265,10 @@ void deal_with_the_data(data_holder *data, char *carjam_url){
   char *LAST_ODO_READING = extract_feature(strstr(LAST_REFERENCE, "odometer_reading\":\""), "\",", 19, 15);
 
   //73 after second repeat
-  char *SUBMODEL = extract_feature(strstr(LAST_REFERENCE, "Submodel:"), "</span", 85, 15);
+  char *SUBMODEL = extract_feature(strstr(LAST_REFERENCE, "Submodel:"), "</span", 38, 20);
   SUBMODEL = (isupper(SUBMODEL[0])) ? SUBMODEL : strdup("Not found");
   
-  char *BODY_STYLE = extract_feature(strstr(LAST_REFERENCE, "Body Style:"), "</span", 40, 10);
+  char *BODY_STYLE = extract_feature(strstr(LAST_REFERENCE, "Body Style:"), "</span", 40, 20);
   
   //display results nicely
   printf("Plate number: %s\nYear: %s\nMake: %s\nModel: %s\nSubmodel: %s\nBody Style: %s\nColour: %s\nLast public odometer reading: %s on %s\nVIN: %s\nChassis: %s\n",
