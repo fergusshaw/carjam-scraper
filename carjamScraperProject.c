@@ -35,10 +35,10 @@ size_t curl_to_string(void *ptr, size_t size, size_t nmemb, void *data)
     
     data_holder *vec = (data_holder *) data;
 
-    //resize the data array if needed
-    if(vec->size + size * nmemb > vec->allocated)
+    //resize the data array if needed (+1 for null terminator)
+    if(vec->size + size * nmemb + 1  > vec->allocated)
     {
-        char *new_data = realloc(vec->data, sizeof(char) * (vec->size + size * nmemb));
+        char *new_data = realloc(vec->data, sizeof(char) * (vec->size + size * nmemb) + 1);
         if(!new_data){
             return 0;
 	}
@@ -49,6 +49,8 @@ size_t curl_to_string(void *ptr, size_t size, size_t nmemb, void *data)
     //add new data (ptr) to data in vec and update size
     memcpy(vec->data + vec->size, ptr, size * nmemb);
     vec->size += size * nmemb;
+
+    vec->data[vec->size] = '\0';
 
     return size * nmemb;
 }
@@ -167,14 +169,13 @@ void curl_get_data(char *carjam_url){
     if (curl_to_the_perform(curl_handle)){
       int iter = 0;
       while (is_loading_screen(data) && iter <6){
-	
-	printf("Loading screen detected. waiting 5 seconds and trying again...\n");
 
-	sleep(5);
-	clear_data(data);
-	
-	curl_to_the_perform(curl_handle);
-	iter++;
+        printf("Loading screen detected. waiting 5 seconds and trying again...\n");
+        sleep(5);
+	      clear_data(data);
+	      
+	      curl_to_the_perform(curl_handle);
+	      iter++;
       }
       deal_with_the_data(data, carjam_url); 
     }
@@ -232,7 +233,7 @@ char *extract_feature(char *data, char *divider, int optional_offset, int max_le
 void deal_with_the_data(data_holder *data, char *carjam_url){
   
   //create pointer for last reference, so we aren't searching from the beginning of the html everytime
-  char *LAST_REFERENCE = malloc(100);
+  char *LAST_REFERENCE;
   
   //find beginning of part we want to look through
   char *REPORT_LOC = strstr(data->data, "<title>Report - ");
