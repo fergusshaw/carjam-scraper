@@ -72,7 +72,7 @@ char* get_url(char* user_input){
   char* url = (char *)malloc(url_length);
 
   if (url == NULL){
-    printf("memory allocation fucked out.\n");
+    printf("memory allocation failed.\n");
     return NULL;
   }
 
@@ -183,9 +183,9 @@ void curl_get_data(char *carjam_url){
 
         printf("Loading screen detected. Waiting 5 seconds and trying again...\n");
         sleep(5);
-	      clear_data(data);
+        clear_data(data);
 	      
-	      curl_to_the_perform(curl_handle);
+        curl_to_the_perform(curl_handle);
       }
 
       check_for_failure(data);
@@ -224,7 +224,7 @@ char *extract_feature(char *data, char *divider, int optional_offset, int max_le
     return FEATURE;
   }
   
-  data = data + optional_offset;
+  data += optional_offset;
   
   //find divider in data, and calculate length of feature
   char *this_div = strstr(data, divider);
