@@ -25,6 +25,7 @@ char *extract_feature(char *data, char *divider, int optional_offset, int max_le
 void deal_with_the_data(data_holder *data, char *carjam_url);
 size_t curl_to_string(void *ptr, size_t size, size_t nmemb, void *data);
 bool curl_to_the_perform(CURL *handle_mate);
+void check_for_failure(data_holder *page_data);
 
 
 size_t curl_to_string(void *ptr, size_t size, size_t nmemb, void *data)
@@ -110,6 +111,17 @@ bool is_loading_screen(data_holder *page_data){
   return strstr(page_data->data, "Waiting for a few more things to happen...") != NULL;   
 }
 
+void check_for_failure(data_holder *page_data){
+  //if back at the home screen, plate was not found
+  if (strlen(page_data->data) == 0){
+    printf("No car was found. Did you get the plate right?");
+    exit(0);
+  }  
+}
+
+void handle_fail(){
+  }
+
 bool curl_to_the_perform(CURL *handle_mate){
    CURLcode result;
    result = curl_easy_perform(handle_mate);
@@ -167,16 +179,16 @@ void curl_get_data(char *carjam_url){
 
     //do the thing
     if (curl_to_the_perform(curl_handle)){
-      int iter = 0;
-      while (is_loading_screen(data) && iter <6){
+      while (is_loading_screen(data)){
 
         printf("Loading screen detected. Waiting 5 seconds and trying again...\n");
         sleep(5);
 	      clear_data(data);
 	      
 	      curl_to_the_perform(curl_handle);
-	      iter++;
       }
+
+      check_for_failure(data);
       deal_with_the_data(data, carjam_url); 
     }
 
@@ -264,7 +276,6 @@ void deal_with_the_data(data_holder *data, char *carjam_url){
   
   char *LAST_ODO_READING = extract_feature(strstr(LAST_REFERENCE, "odometer_reading\":\""), "\",", 19, 15);
 
-  //73 after second repeat
   char *SUBMODEL = extract_feature(strstr(LAST_REFERENCE, "Submodel:"), "</span", 38, 20);
   SUBMODEL = (isupper(SUBMODEL[0])) ? SUBMODEL : strdup("Not found");
   
