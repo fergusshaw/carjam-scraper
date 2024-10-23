@@ -2,12 +2,13 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <string.h>
-#include <ctype.h>
 #include <unistd.h>
+#include <ctype.h>
 #include <curl/curl.h>
 #include "scraperUtils.h"
 
 #define CARJAM_PREFIX "https://www.carjam.co.nz/car/?plate="
+#define FEATURE_NAME(feature) #feature
 
 char* get_url(char* user_input);
 bool is_loading_screen(data_holder *page_data);
@@ -51,7 +52,7 @@ bool is_loading_screen(data_holder *page_data){
 void check_for_failure(data_holder *page_data){
   //if back at the home screen, plate was not found
   if (strlen(page_data->data) == 0){
-    printf("No car was found. Did you get the plate right?");
+    printf("No car was found. Did you get the plate right?\n");
     exit(0);
   }
 }
@@ -77,11 +78,11 @@ void get_carjam_data(CURL *curl_handle, data_holder *data, char *carjam_url){
 //this is a nice function.
 char *extract_feature(char *data, char *divider, int optional_offset, int max_length){
 
-  char *FEATURE = malloc(max_length);
+  char *feature = malloc(max_length);
 
   if (data == NULL){
-    strncpy(FEATURE, "Not found", 10);
-    return FEATURE;
+    strncpy(feature, "Not found", 10);
+    return feature;
   }
 
   data += optional_offset;
@@ -91,86 +92,101 @@ char *extract_feature(char *data, char *divider, int optional_offset, int max_le
   int length = this_div - data;
 
   if (length > max_length){
-    strncpy(FEATURE, "Not found", 10);
-    return FEATURE;
+    strncpy(feature, "Not found", 10);
+    return feature;
   }
 
-  strncpy(FEATURE, data, length);
+  strncpy(feature, data, length);
 
-  FEATURE[length] = '\0';
+  feature[length] = '\0';
 
-  return FEATURE;
+  return feature;
 }
 
 void deal_with_the_data(data_holder *data, char *carjam_url){
 
   //create pointer for last reference, so we aren't searching from the beginning of the html everytime
-  char *LAST_REFERENCE;
+  char *last_reference;
 
   //find beginning of part we want to look through
-  char *REPORT_LOC = strstr(data->data, "<title>Report - ");
+  char *report_loc = strstr(data->data, "<title>Report - ");
 
   //get each feature sequentially based on last reference, length and divider
-  char *PLATE_NUM = extract_feature(REPORT_LOC + 16, " - ", 0, 7);
-  LAST_REFERENCE = REPORT_LOC + 16 + strlen(PLATE_NUM);
+  char *plate_number = extract_feature(report_loc + 16, " - ", 0, 7);
+  last_reference = report_loc + 16 + strlen(plate_number);
 
-  char *YEAR = extract_feature(LAST_REFERENCE + 3, " ", 0, 5);
-  LAST_REFERENCE += strlen(YEAR) + 3;
+  char *year = extract_feature(last_reference + 3, " ", 0, 5);
+  last_reference += strlen(year) + 3;
 
-  char *MAKE = extract_feature(LAST_REFERENCE + 1, " ", 0, 20);
-  LAST_REFERENCE += strlen(MAKE) + 1;
+  char *make = extract_feature(last_reference + 1, " ", 0, 20);
+  last_reference += strlen(make) + 1;
 
-  char *MODEL = extract_feature(LAST_REFERENCE + 1, " ", 0, 20);
-  LAST_REFERENCE += strlen(MODEL) + 1;
+  char *model = extract_feature(last_reference + 1, " ", 0, 20);
+  last_reference += strlen(model) + 1;
 
-  char *COLOUR = extract_feature(LAST_REFERENCE + 4, " | ", 0, 15);
-  LAST_REFERENCE += strlen(COLOUR) + 4;
+  char *colour = extract_feature(last_reference + 4, " | ", 0, 15);
+  last_reference += strlen(colour) + 4;
 
   //everything after colour might not be there, so last reference isn't updated
-  char *VIN = extract_feature(strstr(LAST_REFERENCE, "vin\":\""), "\",", 6, 30);
+  char *vin = extract_feature(strstr(last_reference, "vin\":\""), "\",", 6, 30);
 
-  char *CHASSIS = extract_feature(strstr(LAST_REFERENCE, "chassis\":\""), "-", 10, 20);
+  char *chassis = extract_feature(strstr(last_reference, "chassis\":\""), "-", 10, 20);
 
-  char *LAST_ODO_DATE_UNIX = extract_feature(strstr(LAST_REFERENCE, "odometer_date\":"), ",", 15, 30);
-  char *LAST_ODO_DATE = (strstr(LAST_ODO_DATE_UNIX, "Not found") != NULL) ? strdup("Not found") : time_calc(LAST_ODO_DATE_UNIX);
+  char *last_odo_date_unix = extract_feature(strstr(last_reference, "odometer_date\":"), ",", 15, 30);
+  char *last_odo_date = (strstr(last_odo_date_unix, "Not found") != NULL) ? strdup("Not found") : time_calc(last_odo_date_unix);
 
-  char *LAST_ODO_READING = extract_feature(strstr(LAST_REFERENCE, "odometer_reading\":\""), "\",", 19, 15);
+  char *last_odo_reading = extract_feature(strstr(last_reference, "odometer_reading\":\""), "\",", 19, 15);
 
-  char *GRADE = extract_feature(strstr(LAST_REFERENCE, "grade\":"), "\",", 8, 20);
+  char *grade = extract_feature(strstr(last_reference, "grade\":"), "\",", 8, 20);
 
-  char *MANUFACTURE_DATE = extract_feature(strstr(LAST_REFERENCE, "manufacture_date\":"), "\",", 19, 10);
+  char *manufacture_date = extract_feature(strstr(last_reference, "manufacture_date\":"), "\",", 19, 10);
 
-  char *ENGINE = extract_feature(strstr(LAST_REFERENCE, "engine\":"), "\",", 9, 8);
+  char *engine = extract_feature(strstr(last_reference, "engine\":"), "\",", 9, 8);
 
-  char *DRIVE = extract_feature(strstr(LAST_REFERENCE, "drive\":"), "\",", 8, 10);
+  char *drive = extract_feature(strstr(last_reference, "drive\":"), "\",", 8, 10);
 
-  char *TRANSMISSION = extract_feature(strstr(LAST_REFERENCE, "transmission\":"), "\",", 15, 5);
+  char *transmission = extract_feature(strstr(last_reference, "transmission\":"), "\",", 15, 5);
 
-  char *SUBMODEL = extract_feature(strstr(LAST_REFERENCE, "Submodel:"), "</span", 38, 25);
+  char *submodel = extract_feature(strstr(last_reference, "Submodel:"), "</span", 38, 25);
 
-  char *BODY_STYLE = extract_feature(strstr(LAST_REFERENCE, "Body Style:"), "</span", 40, 20);
+  char *body_style = extract_feature(strstr(last_reference, "Body Style:"), "</span", 40, 20);
 
-  char *ENGINE_SIZE = extract_feature(strstr(LAST_REFERENCE, "CC rating:"), " <span", 622, 8);
+  char *engine_size = extract_feature(strstr(last_reference, "CC rating:"), " <span", 622, 8);
 
-  //display results nicely
-  printf("Plate number: %s\nYear: %s\nMake: %s\nModel: %s\nSubmodel: %s\nGrade: %s\nManufacture date: %s\nEngine: %s\nEngine size: %s\n"
-      "Drive: %s\nTransmission: %s\nBody Style: %s\nColour: %s\nLast public odometer reading: %s on %s\nVIN: %s\nChassis: %s\n",
-	 PLATE_NUM, YEAR, MAKE, MODEL, SUBMODEL, GRADE, MANUFACTURE_DATE, ENGINE, ENGINE_SIZE, DRIVE, TRANSMISSION, BODY_STYLE, COLOUR,
-	 LAST_ODO_READING, LAST_ODO_DATE, VIN, CHASSIS);
+  char * all_the_data[] = {plate_number, year, make, model, submodel, grade, manufacture_date, engine, engine_size, drive, transmission,
+      body_style, colour, vin, chassis};
+
+  char * all_the_names[] = {"Plate number", "Year", "Make", "Model", "Submodel", "Grade", "Manufacture date", "Engine", "Engine size", "Drive",
+      "Transmission", "Body style", "Colour","Vin", "Chassis"};
+
+  //print everthing nicely, only the values that were found
+  for (int index = 0; index < (sizeof(all_the_data) / sizeof(char*)); index++){
+      if (strstr(all_the_data[index], "Not found") != NULL){ continue; }
+
+      printf("%s: %s\n", all_the_names[index], all_the_data[index]);
+  }
+
+  printf("Last public odometer reading: %s on %s\n", last_odo_reading, last_odo_date);
 
   //be free
-  free(PLATE_NUM);
-  free(YEAR);
-  free(MAKE);
-  free(MODEL);
-  free(COLOUR);
-  free(LAST_ODO_DATE_UNIX);
-  free(SUBMODEL);
-  free(BODY_STYLE);
-  free(LAST_ODO_READING);
-  free(LAST_ODO_DATE);
-  free(VIN);
-  free(CHASSIS);
+  free(plate_number);
+  free(year);
+  free(make);
+  free(model);
+  free(colour);
+  free(last_odo_date_unix);
+  free(submodel);
+  free(grade);
+  free(manufacture_date);
+  free(engine);
+  free(engine_size);
+  free(drive);
+  free(transmission);
+  free(body_style);
+  free(last_odo_reading);
+  free(last_odo_date);
+  free(vin);
+  free(chassis);
 }
 
 int main(int argc, char* argv[]){
