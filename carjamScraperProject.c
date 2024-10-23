@@ -4,57 +4,17 @@
 #include <string.h>
 #include <ctype.h>
 #include <unistd.h>
-#include <time.h>
 #include <curl/curl.h>
+#include "scraperUtils.h"
 
 #define CARJAM_PREFIX "https://www.carjam.co.nz/car/?plate="
 
-typedef struct
-{
-    size_t size;
-    size_t allocated;
-    char *data;
-} data_holder;
-
 char* get_url(char* user_input);
-void curl_get_data(char *input);
-int clear_data(data_holder *data);
-char *time_calc(char *last_date);
 bool is_loading_screen(data_holder *page_data);
 char *extract_feature(char *data, char *divider, int optional_offset, int max_length);
 void deal_with_the_data(data_holder *data, char *carjam_url);
-size_t curl_to_string(void *ptr, size_t size, size_t nmemb, void *data);
-bool curl_to_the_perform(CURL *handle_mate);
 void check_for_failure(data_holder *page_data);
-
-
-size_t curl_to_string(void *ptr, size_t size, size_t nmemb, void *data)
-{
-    if(size * nmemb == 0){
-        return 0;
-    }
-    
-    data_holder *vec = (data_holder *) data;
-
-    //resize the data array if needed (+1 for null terminator)
-    if(vec->size + size * nmemb + 1  > vec->allocated)
-    {
-        char *new_data = realloc(vec->data, sizeof(char) * (vec->size + size * nmemb) + 1);
-        if(!new_data){
-            return 0;
-	}
-        vec->data = new_data;
-        vec->allocated = vec->size + size * nmemb + 1;
-    }
-
-    //add new data (ptr) to data in vec and update size
-    memcpy(vec->data + vec->size, ptr, size * nmemb);
-    vec->size += size * nmemb;
-
-    vec->data[vec->size] = '\0';
-
-    return size * nmemb;
-}
+void get_carjam_data(CURL *curl_handle, data_holder *data, char *carjam_url);
 
 char* get_url(char* user_input){
 
@@ -78,37 +38,14 @@ char* get_url(char* user_input){
 
   //create url string/char array with snprintf
   snprintf(url, url_length, "%s%s", CARJAM_PREFIX, user_input);
-  
-  return url; 
-  
-}
 
-int clear_data(data_holder *data) {
-    if (!data || !data->data) {
-        return -1; // Indicate an error if the input pointer is null.
-    }
+  return url;
 
-    // Free the current data if it's allocated
-    free(data->data);
-
-    // Allocate new memory
-    data->data = (char*) malloc(50 * sizeof(char));
-    if (!data->data) {
-        return -1; // Indicate an error if memory allocation fails.
-    }
-
-    memset(data->data, '\0', 50);
-
-    // Reset the size and allocated fields
-    data->allocated = 50;
-    data->size = 0;
-
-    return 0;
 }
 
 bool is_loading_screen(data_holder *page_data){
   //if data contains carjam loading screen text, we're probably in a loading screen
-  return strstr(page_data->data, "Waiting for a few more things to happen...") != NULL;   
+  return strstr(page_data->data, "Waiting for a few more things to happen...") != NULL;
 }
 
 void check_for_failure(data_holder *page_data){
@@ -116,67 +53,10 @@ void check_for_failure(data_holder *page_data){
   if (strlen(page_data->data) == 0){
     printf("No car was found. Did you get the plate right?");
     exit(0);
-  }  
+  }
 }
 
-void handle_fail(){
-  }
-
-bool curl_to_the_perform(CURL *handle_mate){
-   CURLcode result;
-   result = curl_easy_perform(handle_mate);
-  
-    if (result != CURLE_OK){
-      fprintf(stderr, "perform thing failed: %s\n", curl_easy_strerror(result));
-      return false;
-    }
-    else{
-      return true;
-    }
-}
-
-void curl_get_data(char *carjam_url){
-  //initialize curl variables. 
-  CURL *curl_handle;
- 
-  //initial allocation of where data will be stored. 
-  data_holder *data = malloc(sizeof(data_holder));
-
-  if (data == NULL){
-    printf("haha data didnt allocate, loser");
-    free(data);
-    return;
-  }
-  
-  data->size = 0;
-  data->allocated=0;
-  data->data = malloc(50);
-
-  if (data->data == NULL){
-    printf("haha data->data didnt allocate, loser");
-    free(data->data);
-    return;
-  }
- 
-  
-  //initialize libcurl functionality globally. ALL for all known sub modules
-  curl_global_init(CURL_GLOBAL_ALL);
-  //create a handle. (a logic entity for a transfer or set of transfers.)
-  curl_handle = curl_easy_init();    
-
-  if (curl_handle){
-    
-    //set url to recieve data from
-    curl_easy_setopt(curl_handle, CURLOPT_URL, carjam_url);
-
-    //it breaks without this and i'm not actually sure why
-    data_holder vec = {0};
-    
-    //tell libcurl to pass data to the write function defined above. 
-    curl_easy_setopt(curl_handle, CURLOPT_WRITEFUNCTION, curl_to_string);
-    //tells curl to write the actual data
-    curl_easy_setopt(curl_handle, CURLOPT_WRITEDATA, data);
-
+void get_carjam_data(CURL *curl_handle, data_holder *data, char *carjam_url){
     //do the thing
     if (curl_to_the_perform(curl_handle)){
       while (is_loading_screen(data)){
@@ -184,48 +64,28 @@ void curl_get_data(char *carjam_url){
         printf("Loading screen detected. Waiting 5 seconds and trying again...\n");
         sleep(5);
         clear_data(data);
-	      
+
         curl_to_the_perform(curl_handle);
       }
 
       check_for_failure(data);
-      deal_with_the_data(data, carjam_url); 
+      deal_with_the_data(data, carjam_url);
     }
 
-    //free stuff and clean up.    
-    curl_easy_cleanup(curl_handle);
-
-  }
-
-  free(data->data);
-  free(data);
-  curl_global_cleanup();
 }
 
-//converts unix time into dd/mm/yyyy format
-char *time_calc(char *last_date){ 
-  time_t timestamp = atoi(last_date);
-  struct tm *local_time = localtime(&timestamp);
-  int year = local_time->tm_year + 1900;
-  int month = local_time->tm_mon + 1;
-  int day = local_time->tm_mday;
-  char *result = malloc(15);
-  sprintf(result, "%02d-%02d-%04d", day, month, year);
-  return result;
-}
-
-//this is a nice function. 
+//this is a nice function.
 char *extract_feature(char *data, char *divider, int optional_offset, int max_length){
-  
+
   char *FEATURE = malloc(max_length);
 
   if (data == NULL){
-    strncpy(FEATURE, "Not found", 10);  
+    strncpy(FEATURE, "Not found", 10);
     return FEATURE;
   }
-  
+
   data += optional_offset;
-  
+
   //find divider in data, and calculate length of feature
   char *this_div = strstr(data, divider);
   int length = this_div - data;
@@ -234,7 +94,7 @@ char *extract_feature(char *data, char *divider, int optional_offset, int max_le
     strncpy(FEATURE, "Not found", 10);
     return FEATURE;
   }
- 
+
   strncpy(FEATURE, data, length);
 
   FEATURE[length] = '\0';
@@ -243,48 +103,61 @@ char *extract_feature(char *data, char *divider, int optional_offset, int max_le
 }
 
 void deal_with_the_data(data_holder *data, char *carjam_url){
-  
+
   //create pointer for last reference, so we aren't searching from the beginning of the html everytime
   char *LAST_REFERENCE;
-  
+
   //find beginning of part we want to look through
   char *REPORT_LOC = strstr(data->data, "<title>Report - ");
-  
+
   //get each feature sequentially based on last reference, length and divider
   char *PLATE_NUM = extract_feature(REPORT_LOC + 16, " - ", 0, 7);
   LAST_REFERENCE = REPORT_LOC + 16 + strlen(PLATE_NUM);
-  
+
   char *YEAR = extract_feature(LAST_REFERENCE + 3, " ", 0, 5);
   LAST_REFERENCE += strlen(YEAR) + 3;
-  
-  char *MAKE = extract_feature(LAST_REFERENCE + 1, " ", 0, 20); 
+
+  char *MAKE = extract_feature(LAST_REFERENCE + 1, " ", 0, 20);
   LAST_REFERENCE += strlen(MAKE) + 1;
-  
+
   char *MODEL = extract_feature(LAST_REFERENCE + 1, " ", 0, 20);
   LAST_REFERENCE += strlen(MODEL) + 1;
-  
+
   char *COLOUR = extract_feature(LAST_REFERENCE + 4, " | ", 0, 15);
   LAST_REFERENCE += strlen(COLOUR) + 4;
-  
+
   //everything after colour might not be there, so last reference isn't updated
-  char *VIN = extract_feature(strstr(LAST_REFERENCE, "vin\":\""), "\",", 6, 30); 
-  
+  char *VIN = extract_feature(strstr(LAST_REFERENCE, "vin\":\""), "\",", 6, 30);
+
   char *CHASSIS = extract_feature(strstr(LAST_REFERENCE, "chassis\":\""), "-", 10, 20);
-  
+
   char *LAST_ODO_DATE_UNIX = extract_feature(strstr(LAST_REFERENCE, "odometer_date\":"), ",", 15, 30);
   char *LAST_ODO_DATE = (strstr(LAST_ODO_DATE_UNIX, "Not found") != NULL) ? strdup("Not found") : time_calc(LAST_ODO_DATE_UNIX);
-  
+
   char *LAST_ODO_READING = extract_feature(strstr(LAST_REFERENCE, "odometer_reading\":\""), "\",", 19, 15);
 
-  char *SUBMODEL = extract_feature(strstr(LAST_REFERENCE, "Submodel:"), "</span", 38, 20);
-  SUBMODEL = (isupper(SUBMODEL[0])) ? SUBMODEL : strdup("Not found");
-  
+  char *GRADE = extract_feature(strstr(LAST_REFERENCE, "grade\":"), "\",", 8, 20);
+
+  char *MANUFACTURE_DATE = extract_feature(strstr(LAST_REFERENCE, "manufacture_date\":"), "\",", 19, 10);
+
+  char *ENGINE = extract_feature(strstr(LAST_REFERENCE, "engine\":"), "\",", 9, 8);
+
+  char *DRIVE = extract_feature(strstr(LAST_REFERENCE, "drive\":"), "\",", 8, 10);
+
+  char *TRANSMISSION = extract_feature(strstr(LAST_REFERENCE, "transmission\":"), "\",", 15, 5);
+
+  char *SUBMODEL = extract_feature(strstr(LAST_REFERENCE, "Submodel:"), "</span", 38, 25);
+
   char *BODY_STYLE = extract_feature(strstr(LAST_REFERENCE, "Body Style:"), "</span", 40, 20);
-  
+
+  char *ENGINE_SIZE = extract_feature(strstr(LAST_REFERENCE, "CC rating:"), " <span", 622, 8);
+
   //display results nicely
-  printf("Plate number: %s\nYear: %s\nMake: %s\nModel: %s\nSubmodel: %s\nBody Style: %s\nColour: %s\nLast public odometer reading: %s on %s\nVIN: %s\nChassis: %s\n",
-	 PLATE_NUM, YEAR, MAKE, MODEL, SUBMODEL, BODY_STYLE, COLOUR, LAST_ODO_READING, LAST_ODO_DATE, VIN, CHASSIS);
-  
+  printf("Plate number: %s\nYear: %s\nMake: %s\nModel: %s\nSubmodel: %s\nGrade: %s\nManufacture date: %s\nEngine: %s\nEngine size: %s\n"
+      "Drive: %s\nTransmission: %s\nBody Style: %s\nColour: %s\nLast public odometer reading: %s on %s\nVIN: %s\nChassis: %s\n",
+	 PLATE_NUM, YEAR, MAKE, MODEL, SUBMODEL, GRADE, MANUFACTURE_DATE, ENGINE, ENGINE_SIZE, DRIVE, TRANSMISSION, BODY_STYLE, COLOUR,
+	 LAST_ODO_READING, LAST_ODO_DATE, VIN, CHASSIS);
+
   //be free
   free(PLATE_NUM);
   free(YEAR);
@@ -298,27 +171,27 @@ void deal_with_the_data(data_holder *data, char *carjam_url){
   free(LAST_ODO_DATE);
   free(VIN);
   free(CHASSIS);
-  }
+}
 
 int main(int argc, char* argv[]){
-  
+
   //if no argument return and complain
   if (argv[1] == NULL){
     printf("No plate entered. returning\n");
     return -1;
   }
-  
-  char* carjam_url = get_url(argv[1]); 
-  
+
+  char* carjam_url = get_url(argv[1]);
+
   if (carjam_url == NULL){
     printf("url getting failed. sort it out\n");
     return -1;
   }
 
-  curl_get_data(carjam_url);
+  curl_get_data(carjam_url, true);
 
   free(carjam_url);
-  
+
   return 0;
-  
+
 }
