@@ -6,4 +6,6 @@ You give it a numberplate as a command-line argument, and it prints out nicely a
 Example:
 ![Carjam scraper example](example.png)
 
+Some details (everything between submodel and body style) are dependent on a line that seems to not be present for some cars. It's cool when it's there though!
+
 Shoutout [Tinny](https://soundcloud.com/tinnietinskin) for making music that's very nice to write code to.
