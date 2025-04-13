@@ -111,39 +111,62 @@ char *get_plate_history(char *history_section) {
   //tables can get really big when there's been 10+ plates on a car
   char *whole_table = extract_feature(history_section, "</table>", 0, 2420);
   static char result_string[420];
-  result_string[0] = '\0';  // Initialize empty string
+  result_string[0] = '\0'; 
+
+  int last_plate_length = 0;
   
-  // Look for license plates in <td> tags
+  //look for <td> tags
   char *position = whole_table;
   while ((position = strstr(position, "<td>")) != NULL) {
-    position += 4;  // Move past "<td>"
+    position += 4;  //move past <td>
       
-    // Find the end of this cell
+    //find the end of this cell
     char *end_td = strstr(position, "</td>");
     if (!end_td) break;
       
-    // Calculate length of content
     int content_length = end_td - position;
-    if (content_length > 0 && content_length < 7) {  // Reasonable length for plate
+
+        if (content_length > 0 && content_length < 7) {  //possible plate length
   
-      // Copy plate to a temporary buffer
+      //copy plate to a temporary buffer
       char temp[7];
       int temp_idx = 0;
      
       for (int i = 0; i < content_length; i++) {
-        //if (isalnum(position[i])) {
         temp[temp_idx++] = position[i];
-        //}
       }
       temp[temp_idx] = '\0';
                 
-      // If we found a valid plate, add it to results
+      //if we found a plate, add it to results
       if (temp_idx > 0) {
         strcat(result_string, "\n");
         strcat(result_string, temp);
+        last_plate_length = content_length;
       }
     }
-    // Move to next position
+    else if (content_length > 7){ //bigger than plate but still something == date
+
+      char temp[12]; //date length
+      int temp_idx = 0;
+      for (int i = 0; i < content_length; i++){
+        if (position[i] != '\n' && position[i] != '\t'){
+          temp[temp_idx++] = position[i];
+        }
+       
+      }
+      temp[temp_idx] = '\0';
+      
+      //add padding for the dates based on length of plate so it looks nice and even
+      char padding[15 - last_plate_length];
+      memset(padding, ' ', sizeof(padding));
+      padding[15 - last_plate_length] = '\0';
+
+      if (temp_idx > 0){
+        strcat(result_string, padding);
+        strcat(result_string, temp);
+      }
+    }
+    //move to next position
     position = end_td;
   }
  
@@ -188,7 +211,6 @@ void deal_with_the_data(data_holder *data, char *carjam_url){
   
 
   //print everthing nicely, only the values that were found
-  
   //only print up to the 13th element, we have other plans for odo date, reading and plate history
   for (int index = 0; index < 14; index++){
     if (strstr(most_of_the_data[index], "Not found") != NULL){ continue; }
@@ -196,7 +218,6 @@ void deal_with_the_data(data_holder *data, char *carjam_url){
     printf("%s: %s\n", most_of_the_names[index], most_of_the_data[index]);
     //free(most_of_the_data[index]);
   }
-
   
   for (int index = 0; index < rest_size; index++){
     //due to this being a hard coded web scraper, i overlooked something that 
