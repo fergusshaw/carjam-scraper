@@ -8,18 +8,16 @@
 #include "scraperUtils.h"
 
 #define CARJAM_PREFIX "https://www.carjam.co.nz/car/?plate="
-#define FEATURE_NAME(feature) #feature
 
 char* get_url(char* user_input);
 bool is_loading_screen(data_holder *page_data);
 char *extract_feature(char *data, char *divider, int optional_offset, int max_length);
 void deal_with_the_data(data_holder *data, char *carjam_url);
 void check_for_failure(data_holder *page_data);
-void get_carjam_data(CURL *curl_handle, data_holder *data, char *carjam_url);
 char *get_plate_history(char *history_section);
-char **get_most_of_it(data_holder *data);
-char **window_jph_there(data_holder *data);
-char **window_jph_not_there(data_holder *data);
+char **get_data(data_holder *data);
+void clean_up(char *a, char *b, char *c, char *d, char *e, char *f, char *g, char *h, char *i, char *j, char *k, char *l,
+              char *m, char *n, char *o, char *p, char *q, char *r, char *s, char *t);
 
 char* get_url(char* user_input){
 
@@ -87,7 +85,7 @@ char *extract_feature(char *data, char *divider, int optional_offset, int max_le
   if (data == NULL){
     strncpy(feature, "Not found", 10);
     return feature;
-  }
+  };
 
   data += optional_offset;
 
@@ -175,89 +173,38 @@ char *get_plate_history(char *history_section) {
 
 void deal_with_the_data(data_holder *data, char *carjam_url){
 
-  char **most_of_the_data = get_most_of_it(data);
-  //plate history is [16]
+  char **the_data = get_data(data);
+  //plate history is [18]
   
-  char *most_of_the_names[] = {"Plate number", "Year", "Make", "Model", "Colour", "Chassis", "Submodel", "Body Style", "Engine Size", "Fuel type", "Popularity", "Power", "Weight", "Country of origin"};
-
-
-  int rest_size;
-  char **rest_of_it;
-  char *rest_of_the_names[6];
-
-  bool window_jph_there_bool = (strstr(data->data, "window.jph_search") != NULL);
-  if (window_jph_there_bool){
-    rest_of_it = window_jph_there(data);
-    
-    //individually assign because we've already declared array
-    rest_of_the_names[0] = "Grade";
-    rest_of_the_names[1] = "Manufacture date";
-    rest_of_the_names[2] = "Engine";
-    rest_of_the_names[3] = "Drive";
-    rest_of_the_names[4] = "Transmission";
-    rest_of_the_names[5] = "VIN";
-
-    rest_size = 6;
-  }
-  else{
-    rest_of_it = window_jph_not_there(data);
-
-    rest_of_the_names[0] = "VIN";
-    rest_of_the_names[1] = "Engine";
-    rest_of_the_names[2] = "Transmission";
-
-    rest_size = 3;
-  }
-  
+  char *the_names[] = {"Plate number", "Year", "Make", "Model", "Colour", "Submodel", "Chassis", "Engine", "Transmission", "Drive", "Body Style", "VIN", "Engine Size", "Fuel type", "Popularity", "Power", "Weight", "Country of origin"};
 
   //print everthing nicely, only the values that were found
-  //only print up to the 13th element, we have other plans for odo date, reading and plate history
-  for (int index = 0; index < 14; index++){
-    if (strstr(most_of_the_data[index], "Not found") != NULL){ continue; }
+  //only print up to the 17th element, we have other plans for odo date, reading and plate history
+  for (int index = 0; index < 18; index++){
+    if (strstr(the_data[index], "Not found") != NULL){ continue; }
 
-    printf("%s: %s\n", most_of_the_names[index], most_of_the_data[index]);
+    printf("%s: %s\n", the_names[index], the_data[index]);
     //free(most_of_the_data[index]);
   }
   
-  for (int index = 0; index < rest_size; index++){
-    //due to this being a hard coded web scraper, i overlooked something that 
-    //means values can sometimes appear twice, in different variables. (usually here)
-    //this loop filters out these duplicates :)
-    int contains = 0;
-    for (int idx = 0; idx < 14; idx++){
-      if (strcmp(most_of_the_data[idx], rest_of_it[index]) == 0){ 
-        contains = 1; 
-        break;
-      }
-    }
-    if (strstr(rest_of_it[index], "Not found") != NULL || contains == 1){ continue; }
-
-    printf("%s: %s\n", rest_of_the_names[index], rest_of_it[index]);
-    //free(rest_of_it[index]);
-  }
-  
-  
-  char *last_odo_reading = most_of_the_data[16];
-  char *last_odo_date = most_of_the_data[15];
+  char *last_odo_reading = the_data[20];
+  char *last_odo_date = the_data[19];
   if (strstr(last_odo_reading, "Not found") == NULL || strstr(last_odo_date, "Not found") == NULL){
     printf("Last public odometer reading: %s on %s\n", last_odo_reading, last_odo_date);
   }
   
   //make sure there is a plate
   //if plate less than two there will be a previous one since custom!!
-  if (strlen(most_of_the_data[14]) > 2){
-    printf("Plate history:%s\n", most_of_the_data[14]);
+  if (strlen(the_data[18]) > 2){
+    printf("Plate history:%s\n", the_data[18]);
   }
   
-  //free(last_odo_date);
-  //free(last_odo_reading);
-
-  free(most_of_the_data);
-  free(rest_of_it);
-
+  
+  free(the_data);
+ 
  }
 
-char **get_most_of_it(data_holder *data){
+char **get_data(data_holder *data){
   //find beginning of part we want to look through
   char *search_from = strstr(data->data, "<title>Report - ");
 
@@ -308,93 +255,48 @@ char **get_most_of_it(data_holder *data){
   char *weight_section = strstr(search_from, "<span class=\"key\" data-key=\"gross_vehicle_mass\">");
   char *weight = (weight_section == NULL) ? "Not found" : extract_feature(strstr(weight_section, "value\">"), "</span", 7, 8);
 
-  char *plate_history = get_plate_history(strstr(search_from, "<th class=\'key\'>Effective Date</th>"));
-
-  char *all_the_data[] = {plate_number, year, make, model, colour, chassis, submodel, body_style, engine_size, fuel_type, popularity, power, weight, country, plate_history, last_odo_date, last_odo_reading};
-
-  int size = 18; 
-
-  char **all_data_returnable = malloc(size * sizeof(char *));
-  if (!all_data_returnable){
-    printf("No good. all data returnable alloc failed");
-    return NULL;
-  }
-
-  for (int feature = 0; feature < 17; feature++){
-    all_data_returnable[feature] = all_the_data[feature];
-  }
-  all_data_returnable[17] = NULL;
-
-  return all_data_returnable;
-
-}
-
-char **window_jph_not_there(data_holder *data){
-
-  char *search_from = strstr(data->data, "table table-condensed no-border\">");
-  
   char *vin_section = strstr(search_from, "<span class=\"key\" data-key=\"vin\">");
-  char *vin = extract_feature(strstr(vin_section, "terminal\'>"), "</span>", 10, 30);
+  char *vin = (vin_section == NULL) ? "Not found" : extract_feature(strstr(vin_section, "terminal\'>"), "</span>", 10, 30);
 
   char *engine_section = strstr(search_from, "<span class=\"key\" data-key=\"engine_number\">");
-  char *engine = extract_feature(strstr(engine_section, "terminal\'>"), "<", 10, 20);
+  char *engine = (engine_section == NULL) ? "Not found" : extract_feature(strstr(engine_section, "terminal\'>"), "<", 10, 20);
 
   char *transmission_section = strstr(search_from, "<span class=\"key\" data-key=\"transmission\">");
-  char *transmission = extract_feature(strstr(transmission_section, "value\">"), "<", 7, 30);
+  char *transmission = (transmission_section == NULL) ? "Not found" : extract_feature(strstr(transmission_section, "value\">"), "<", 7, 30);  
 
-  char *all_the_data[] = {vin, engine, transmission};
+  char *drive_section = strstr(search_from, "<span class=\"key\" data-key=\"drive\">");
+  char *drive = (drive_section == NULL) ? "Not found" : extract_feature(strstr(drive_section, "value\">"), "<", 7, 5);
 
-  int size = 4; 
+  char *plate_history = get_plate_history(strstr(search_from, "<th class=\'key\'>Effective Date</th>"));
+
+  char *all_the_data[] = {plate_number, year, make, model, colour, submodel, chassis, engine, transmission, drive, body_style, vin, engine_size, fuel_type, popularity, power, weight, country, plate_history, last_odo_date, last_odo_reading};
+
+  int size = 22; 
 
   char **all_data_returnable = malloc(size * sizeof(char *));
   if (!all_data_returnable){
     printf("No good. all data returnable alloc failed");
+    clean_up(plate_number, year, make, model, colour, last_odo_date_unix, last_odo_reading, chassis, submodel,
+            body_style, engine_size, fuel_type, popularity, country, power, weight, vin, engine, transmission, drive);
     return NULL;
   }
 
-  for (int feature = 0; feature < 3; feature++){
+  for (int feature = 0; feature < 21; feature++){
     all_data_returnable[feature] = all_the_data[feature];
   }
-  all_data_returnable[3] = NULL;
+  all_data_returnable[21] = NULL;
 
   return all_data_returnable;
 
 }
 
-char **window_jph_there(data_holder *data){
-
-  //find beginning of part we want to look through
-  char *search_from = strstr(data->data, "<title>Report - ");
-
-  char *vin = extract_feature(strstr(search_from, "vin\":\""), "\",", 6, 30);
-
-  char *grade = extract_feature(strstr(search_from, "grade\":"), "\",", 8, 20);
-
-  char *manufacture_date = extract_feature(strstr(search_from, "manufacture_date\":"), "\",", 19, 10);
-
-  char *engine = extract_feature(strstr(search_from, "engine\":"), "\",", 9, 8);
-
-  char *drive = extract_feature(strstr(search_from, "drive\":"), "\",", 8, 10);
-
-  char *transmission = extract_feature(strstr(search_from, "transmission\":"), "\",", 15, 5);
-
-  
-  char * all_the_data[] = {grade, manufacture_date, engine, drive, transmission, vin};
-
-  int size = 7; //max is 6 + null terminator
-  
-  char ** all_data_returnable = malloc(size * sizeof(char *));
-  if (!all_data_returnable){ 
-    printf("No good. all data returnable alloc failed");
-    return NULL;
-  }
-
-  for (int feature = 0; feature < 6; feature++){
-    all_data_returnable[feature] = all_the_data[feature];
-  }
-  all_data_returnable[6] = NULL;
-
-  return all_data_returnable;
+void clean_up(char *a, char *b, char *c, char *d, char *e, char *f, char *g, char *h, char *i, char *j, char *k, char *l,
+              char *m, char *n, char *o, char *p, char *q, char *r, char *s, char *t){
+    char *everything[] = {a, b, c, d, e, f, g, h, i, j, k, l, m, n, o,
+                          p, q, r, s, t};
+    for (int idx = 0; idx < 20; idx++){
+        free(everything[idx]);
+    }
 }
 
 int main(int argc, char* argv[]){
